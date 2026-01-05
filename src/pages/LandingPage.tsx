@@ -1,92 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
-
 interface LandingPageProps {
   onGetStarted: () => void
 }
 
 export default function LandingPage({ onGetStarted }: LandingPageProps) {
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const [isMusicPlaying, setIsMusicPlaying] = useState(false)
-
-  useEffect(() => {
-    // Create audio element
-    audioRef.current = new Audio('/audio/Assault Fire： Three Minutes of Glory performed by Razorback.mp3')
-    audioRef.current.loop = true
-    audioRef.current.volume = 0.5 // 50% volume
-
-    // Auto-play music when page loads
-    const playMusic = () => {
-      if (audioRef.current) {
-        audioRef.current.play()
-          .then(() => {
-            setIsMusicPlaying(true)
-          })
-          .catch(() => {
-            // Browser blocked autoplay, will play on first user interaction
-            const playOnInteraction = () => {
-              if (audioRef.current) {
-                audioRef.current.play()
-                  .then(() => setIsMusicPlaying(true))
-                  .catch(() => {})
-              }
-              document.removeEventListener('click', playOnInteraction)
-            }
-            document.addEventListener('click', playOnInteraction)
-          })
-      }
-    }
-    
-    playMusic()
-
-    return () => {
-      // Cleanup on unmount
-      if (audioRef.current) {
-        audioRef.current.pause()
-        audioRef.current = null
-      }
-    }
-  }, [])
-
-  const toggleMusic = () => {
-    if (audioRef.current) {
-      if (isMusicPlaying) {
-        audioRef.current.pause()
-      } else {
-        audioRef.current.play()
-      }
-      setIsMusicPlaying(!isMusicPlaying)
-    }
-  }
 
   return (
     <div className="landing-page">
-      {/* Music Toggle Button */}
-      <button 
-        className="music-toggle"
-        onClick={toggleMusic}
-        style={{
-          position: 'fixed',
-          top: '20px',
-          right: '20px',
-          zIndex: 1000,
-          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.8) 0%, rgba(139, 92, 246, 0.8) 100%)',
-          border: '2px solid rgba(255, 255, 255, 0.3)',
-          borderRadius: '50%',
-          width: '50px',
-          height: '50px',
-          cursor: 'pointer',
-          fontSize: '20px',
-          color: '#fff',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          transition: 'all 0.3s ease',
-          boxShadow: '0 4px 20px rgba(99, 102, 241, 0.4)'
-        }}
-      >
-        {isMusicPlaying ? '🔊' : '🔇'}
-      </button>
-
       {/* Navigation */}
       <nav className="navbar">
         <div className="nav-container">
@@ -108,7 +27,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             Precision meets innovation. Transform your workflow with cutting-edge solutions.
           </p>
           <div className="hero-buttons">
-            <button className="btn btn-primary" onClick={onGetStarted}>Get Started</button>
+            <button className="btn btn-primary" onClick={() => window.open(window.location.origin + '?page=home', '_blank')}>Get Started</button>
             <button className="btn btn-secondary">Learn More</button>
           </div>
         </div>
@@ -160,7 +79,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         <div className="container">
           <h2 className="cta-title">Ready to Get Started?</h2>
           <p className="cta-text">Join thousands of satisfied customers today.</p>
-          <button className="btn btn-large" onClick={onGetStarted}>Contact Us</button>
+          <button className="btn btn-large" onClick={() => window.open(window.location.origin + '?page=home', '_blank')}>Contact Us</button>
         </div>
       </section>
 

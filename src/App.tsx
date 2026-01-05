@@ -13,7 +13,12 @@ import Settings from './pages/Settings.tsx'
 type Page = 'landing' | 'home' | 'play' | 'collections' | 'leaderboards' | 'achievements' | 'store' | 'profile' | 'settings'
 
 function App() {
-  const [currentPage, setCurrentPage] = useState<Page>('home')
+  // Check URL parameters to determine initial page
+  const urlParams = new URLSearchParams(window.location.search)
+  const pageParam = urlParams.get('page') as Page | null
+  const initialPage = pageParam && ['landing', 'home', 'play', 'collections', 'leaderboards', 'achievements', 'store', 'profile', 'settings'].includes(pageParam) ? pageParam : 'landing'
+  
+  const [currentPage, setCurrentPage] = useState<Page>(initialPage)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [isMusicPlaying, setIsMusicPlaying] = useState(false)
 
