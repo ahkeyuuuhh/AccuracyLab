@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import './App.css'
+import './style/App.css'
 import LandingPage from './pages/LandingPage.tsx'
+import Login from './pages/Login.tsx'
+import Signup from './pages/Signup.tsx'
 import Home from './pages/Home.tsx'
 import Play from './pages/Play.tsx'
 import Collections from './pages/Collections.tsx'
@@ -10,13 +12,13 @@ import Store from './pages/Store.tsx'
 import Profile from './pages/Profile.tsx'
 import Settings from './pages/Settings.tsx'
 
-type Page = 'landing' | 'home' | 'play' | 'collections' | 'leaderboards' | 'achievements' | 'store' | 'profile' | 'settings'
+type Page = 'landing' | 'login' | 'signup' | 'home' | 'play' | 'collections' | 'leaderboards' | 'achievements' | 'store' | 'profile' | 'settings'
 
 function App() {
   // Check URL parameters to determine initial page
   const urlParams = new URLSearchParams(window.location.search)
   const pageParam = urlParams.get('page') as Page | null
-  const initialPage = pageParam && ['landing', 'home', 'play', 'collections', 'leaderboards', 'achievements', 'store', 'profile', 'settings'].includes(pageParam) ? pageParam : 'landing'
+  const initialPage = pageParam && ['landing', 'login', 'signup', 'home', 'play', 'collections', 'leaderboards', 'achievements', 'store', 'profile', 'settings'].includes(pageParam) ? pageParam : 'landing'
   
   const [currentPage, setCurrentPage] = useState<Page>(initialPage)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -95,7 +97,23 @@ function App() {
   const renderPage = () => {
     switch (currentPage) {
       case 'landing':
-        return <LandingPage onGetStarted={() => setCurrentPage('home')} />
+        return <LandingPage 
+          onGetStarted={() => setCurrentPage('home')} 
+          onLogin={() => setCurrentPage('login')}
+          onSignup={() => setCurrentPage('signup')}
+        />
+      case 'login':
+        return <Login 
+          onLogin={() => setCurrentPage('home')} 
+          onSwitchToSignup={() => setCurrentPage('signup')}
+          onBackToLanding={() => setCurrentPage('landing')}
+        />
+      case 'signup':
+        return <Signup 
+          onSignup={() => setCurrentPage('home')} 
+          onSwitchToLogin={() => setCurrentPage('login')}
+          onBackToLanding={() => setCurrentPage('landing')}
+        />
       case 'home':
         return <Home />
       case 'play':
@@ -117,7 +135,7 @@ function App() {
     }
   }
 
-  if (currentPage === 'landing') {
+  if (currentPage === 'landing' || currentPage === 'login' || currentPage === 'signup') {
     return renderPage()
   }
 
