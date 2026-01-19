@@ -258,7 +258,7 @@ export default function LandingPage({ onGetStarted, onLogin, onSignup }: Landing
           </div>
           
           <div className="footer-column">
-            <h4 className="footer-column-title">Product</h4>
+            <h4 className="footer-column-title">Features</h4>
             <a href="#drills" className="footer-link">Training Drills</a>
             <a href="#features" className="footer-link">Features</a>
             <a href="#leadership" className="footer-link">Leaderboard</a>
