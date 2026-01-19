@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useMemo, memo, useCallback } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { useGLTF } from '@react-three/drei'
+import { useGLTF, useAnimations } from '@react-three/drei'
 import * as THREE from 'three'
 
 // Expanded word list - organized by difficulty (length)
@@ -141,14 +141,16 @@ const PlayerGun = memo(function PlayerGun({ recoil }: { recoil: number }) {
   )
 })
 
-// Moving Zombie Component - Memoized for performance
-const Zombie = memo(function Zombie({ 
+// 3D Zombie Model Component with Walking Animation
+function ZombieModel({ 
+  id,
   positionX,
-  positionZ,
+  positionZ: initialPositionZ,
   isDead,
   wave,
   onReachPlayer
 }: { 
+  id: number
   positionX: number
   positionZ: number
   isDead: boolean
@@ -156,91 +158,113 @@ const Zombie = memo(function Zombie({
   onReachPlayer: () => void
 }) {
   const groupRef = useRef<THREE.Group>(null)
-  const currentZRef = useRef(positionZ)
-  const hasReachedRef = useRef(false)
-  const deathStartRef = useRef<number | null>(null)
+  const [currentZ, setCurrentZ] = useState(initialPositionZ)
+  const hasReached = useRef(false)
+  const deathTime = useRef<number | null>(null)
+  const prevId = useRef(id)
+  
+  // Load 3D zombie model
+  const { scene, animations } = useGLTF('/models/zombie/scene.gltf')
+  const clonedScene = useMemo(() => scene.clone(), [scene])
+  
+  const { actions } = useAnimations(animations, groupRef)
 
+  // Reset everything when zombie ID changes (new zombie)
   useEffect(() => {
-    currentZRef.current = positionZ
-    hasReachedRef.current = false
-    deathStartRef.current = null
-  }, [positionZ])
+    if (prevId.current !== id) {
+      setCurrentZ(initialPositionZ)
+      hasReached.current = false
+      deathTime.current = null
+      prevId.current = id
+    }
+  }, [id, initialPositionZ])
 
+  // Handle death timing
   useEffect(() => {
-    if (isDead && deathStartRef.current === null) {
-      deathStartRef.current = Date.now()
+    if (isDead && deathTime.current === null) {
+      deathTime.current = Date.now()
+    }
+    if (!isDead) {
+      deathTime.current = null
+      hasReached.current = false
     }
   }, [isDead])
 
-  useFrame((_, delta) => {
-    if (!groupRef.current) return
-    
-    if (isDead && deathStartRef.current) {
-      const timeSinceDeath = (Date.now() - deathStartRef.current) / 1000
-      groupRef.current.rotation.x = Math.min(Math.PI / 2, timeSinceDeath * 5)
-      groupRef.current.position.y = Math.max(-2, 1 - timeSinceDeath * 3)
-    } else if (!isDead) {
-      // Speed increases with wave
-      const baseSpeed = 1.5
-      const speedBonus = Math.min(wave * 0.15, 1.5)
-      const speed = baseSpeed + speedBonus
+  // Play walking animation when alive
+  useEffect(() => {
+    if (!isDead && actions) {
+      const walkAction = actions['Walk'] || actions['walk'] || actions['Walking'] || 
+                         actions['walking'] || actions['Run'] || actions['run'] ||
+                         Object.values(actions)[0]
       
-      currentZRef.current += speed * delta
-      groupRef.current.position.z = currentZRef.current
-      groupRef.current.rotation.x = 0
-      
-      if (currentZRef.current > 6 && !hasReachedRef.current) {
-        hasReachedRef.current = true
-        onReachPlayer()
+      if (walkAction) {
+        walkAction.reset().fadeIn(0.2).play()
+        return () => walkAction.fadeOut(0.2)
       }
+    } else if (isDead && actions) {
+      Object.values(actions).forEach(action => action?.stop())
     }
-  })
+  }, [isDead, actions])
 
-  const zombieColor = isDead ? '#2a4a2a' : '#006400'
-  const bodyColor = isDead ? '#3a5a3a' : '#228B22'
+  // Movement animation loop
+  useEffect(() => {
+    if (isDead) return
+    
+    let animationId: number
+    let lastTime = performance.now()
+    
+    const animate = () => {
+      const now = performance.now()
+      const delta = (now - lastTime) / 1000
+      lastTime = now
+      
+      const speed = 1.5 + Math.min(wave * 0.15, 1.5)
+      
+      setCurrentZ(prev => {
+        const newZ = prev + speed * delta
+        
+        // Check if reached player
+        if (newZ > 6 && !hasReached.current) {
+          hasReached.current = true
+          onReachPlayer()
+        }
+        
+        return newZ
+      })
+      
+      animationId = requestAnimationFrame(animate)
+    }
+    
+    animationId = requestAnimationFrame(animate)
+    
+    return () => cancelAnimationFrame(animationId)
+  }, [isDead, wave, onReachPlayer])
+
+  // Death animation
+  const deathRotation = isDead && deathTime.current 
+    ? Math.min(Math.PI / 2, (Date.now() - deathTime.current) / 1000 * 5)
+    : 0
+  const deathY = isDead && deathTime.current
+    ? Math.max(-2, -(Date.now() - deathTime.current) / 1000 * 3)
+    : 0
 
   return (
-    <group ref={groupRef} position={[positionX, 1, positionZ]}>
-      {/* Head */}
-      <mesh position={[0, 0.5, 0]}>
-        <boxGeometry args={[0.3, 0.3, 0.3]} />
-        <meshLambertMaterial color={zombieColor} />
-      </mesh>
-      {/* Eyes */}
-      <mesh position={[-0.08, 0.55, 0.16]}>
-        <sphereGeometry args={[0.04, 6, 6]} />
-        <meshBasicMaterial color={isDead ? '#330000' : '#ff0000'} />
-      </mesh>
-      <mesh position={[0.08, 0.55, 0.16]}>
-        <sphereGeometry args={[0.04, 6, 6]} />
-        <meshBasicMaterial color={isDead ? '#330000' : '#ff0000'} />
-      </mesh>
-      {/* Body */}
-      <mesh position={[0, -0.1, 0]}>
-        <boxGeometry args={[0.4, 0.8, 0.25]} />
-        <meshLambertMaterial color={bodyColor} />
-      </mesh>
-      {/* Arms */}
-      <mesh position={[-0.25, -0.2, 0.1]} rotation={[-0.5, 0, 0.2]}>
-        <boxGeometry args={[0.12, 0.6, 0.12]} />
-        <meshLambertMaterial color={zombieColor} />
-      </mesh>
-      <mesh position={[0.25, -0.2, 0.1]} rotation={[-0.5, 0, -0.2]}>
-        <boxGeometry args={[0.12, 0.6, 0.12]} />
-        <meshLambertMaterial color={zombieColor} />
-      </mesh>
-      {/* Legs */}
-      <mesh position={[-0.1, -0.75, 0]}>
-        <boxGeometry args={[0.14, 0.5, 0.14]} />
-        <meshLambertMaterial color={bodyColor} />
-      </mesh>
-      <mesh position={[0.1, -0.75, 0]}>
-        <boxGeometry args={[0.14, 0.5, 0.14]} />
-        <meshLambertMaterial color={bodyColor} />
-      </mesh>
+    <group 
+      ref={groupRef} 
+      position={[positionX, deathY, currentZ]}
+      rotation={[deathRotation, 0, 0]}
+    >
+      <primitive 
+        object={clonedScene} 
+        scale={0.4}
+        rotation={[0, Math.PI, 0]}
+      />
     </group>
   )
-})
+}
+
+// Keep the original Zombie component name for compatibility
+const Zombie = ZombieModel
 
 // Boss Zombie Component - Much bigger and scarier
 const BossZombie = memo(function BossZombie({ 
@@ -671,6 +695,7 @@ export default function TypingDrill3D({ onExit }: { onExit: () => void }) {
         {zombies.map((zombie) => (
           <Zombie
             key={zombie.id}
+            id={zombie.id}
             positionX={zombie.positionX}
             positionZ={zombie.positionZ}
             isDead={zombie.isDead}
