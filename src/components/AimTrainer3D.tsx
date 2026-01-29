@@ -2,6 +2,9 @@ import { useRef, useState, useEffect, useMemo } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
+import type { User } from 'firebase/auth'
+import { submitScore } from '../firebase/leaderboardService'
+import { updateGameStats, type Achievement } from '../firebase/achievementsService'
 
 // Camera Controller - Handle mouse movement only
 function CameraController({ sensitivity = 1 }: { sensitivity?: number }) {
@@ -869,11 +872,13 @@ function Target({ position, onMount, onHit, index }: TargetProps) {
 // Main Aim Trainer Component
 interface AimTrainer3DProps {
   onExit?: () => void
+  currentUser?: User | null
+  duration?: number
 }
 
-export default function AimTrainer3D({ onExit }: AimTrainer3DProps) {
+export default function AimTrainer3D({ onExit, currentUser, duration = 60 }: AimTrainer3DProps) {
   const [score, setScore] = useState(0)
-  const [timeLeft, setTimeLeft] = useState(60)
+  const [timeLeft, setTimeLeft] = useState(duration)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const [countdown, setCountdown] = useState(0)
@@ -886,6 +891,10 @@ export default function AimTrainer3D({ onExit }: AimTrainer3DProps) {
   // Settings
   const [sensitivity, setSensitivity] = useState(1)
   const [volume, setVolume] = useState(50)
+  
+  // Track game stats for achievements
+  const gameStartTimeRef = useRef<number>(0)
+  const [newAchievements, setNewAchievements] = useState<Achievement[]>([])
 
   // Handle ESC key for pause menu and R for restart
   useEffect(() => {
@@ -1057,14 +1066,63 @@ export default function AimTrainer3D({ onExit }: AimTrainer3DProps) {
     return [x, y, z]
   }
 
+  // Submit game stats to leaderboard and achievements
+  const submitGameStats = async () => {
+    if (!currentUser) return
+    
+    const gameDuration = Math.floor((Date.now() - gameStartTimeRef.current) / 1000)
+    const hits = score / 100 // Each hit is 100 points
+    const accuracy = totalShots > 0 ? (hits / totalShots) * 100 : 0
+    
+    try {
+      // Submit to leaderboard
+      await submitScore(
+        currentUser.uid,
+        currentUser.displayName || 'Anonymous',
+        currentUser.email || '',
+        currentUser.photoURL || null,
+        score,
+        accuracy,
+        'aim'
+      )
+      
+      // Update achievements
+      const unlockedAchievements = await updateGameStats(
+        currentUser.uid,
+        'aim',
+        {
+          accuracy,
+          duration: gameDuration
+        }
+      )
+      
+      if (unlockedAchievements.length > 0) {
+        setNewAchievements(unlockedAchievements)
+      }
+      
+      // Check daily tasks and award currency
+      const { checkDailyTasksAfterGame } = await import('../firebase/currencyService')
+      await checkDailyTasksAfterGame(currentUser.uid, 'aim', {
+        score,
+        wave: 1,
+        kills: hits,
+        accuracy
+      })
+    } catch (error) {
+      console.error('Error submitting game stats:', error)
+    }
+  }
+
   // Start game with countdown
   const startGame = () => {
     setScore(0)
-    setTimeLeft(60)
+    setTimeLeft(duration)
     setTotalShots(0)
     setShowGameOver(false)
     setIsCountingDown(true)
     setCountdown(3)
+    setNewAchievements([])
+    gameStartTimeRef.current = Date.now()
     
     // Generate targets with zone separation
     const target1 = generateRandomPosition(0)  // Left zone
@@ -1110,6 +1168,7 @@ export default function AimTrainer3D({ onExit }: AimTrainer3DProps) {
     if (timeLeft <= 0) {
       setIsPlaying(false)
       setShowGameOver(true)
+      submitGameStats()
       // Exit pointer lock when game ends
       if (document.pointerLockElement) {
         document.exitPointerLock()
@@ -1378,6 +1437,26 @@ export default function AimTrainer3D({ onExit }: AimTrainer3DProps) {
                 Exit
               </button>
             </div>
+            
+            {/* New Achievements Unlocked */}
+            {newAchievements.length > 0 && (
+              <div style={{ marginTop: '30px', padding: '20px', background: 'rgba(99, 102, 241, 0.2)', borderRadius: '12px', border: '2px solid rgba(99, 102, 241, 0.5)' }}>
+                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#6366f1', marginBottom: '15px' }}>
+                  🏆 NEW ACHIEVEMENTS UNLOCKED!
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {newAchievements.map(achievement => (
+                    <div key={achievement.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(255, 255, 255, 0.05)', padding: '12px', borderRadius: '8px' }}>
+                      <div style={{ fontSize: '32px' }}>{achievement.icon}</div>
+                      <div style={{ textAlign: 'left', flex: 1 }}>
+                        <div style={{ color: '#fff', fontWeight: 'bold', fontSize: '16px' }}>{achievement.title}</div>
+                        <div style={{ color: '#aaa', fontSize: '12px' }}>{achievement.description}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1507,11 +1586,13 @@ export default function AimTrainer3D({ onExit }: AimTrainer3DProps) {
       {/* 3D Canvas */}
       <Canvas
         camera={{ position: [0, 1.6, 8], fov: 75 }}
-        style={{ background: 'linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%)' }}        onClick={() => {
+        style={{ background: 'linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%)' }}
+        onClick={() => {
           if (isPlaying && !isPaused) {
             handleShoot()
           }
-        }}      >
+        }}
+      >
         {/* Daylight Lighting */}
         <ambientLight intensity={0.8} />
         <directionalLight 

@@ -1,54 +1,27 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import AimTrainer3D from '../components/AimTrainer3D'
-import TypingDrill3D from '../components/TypingDrill3D'
 
 export default function Play() {
-  const [view, setView] = useState<'menu' | 'drills' | 'aimtrainer' | 'typingdrill'>('drills')
+  const [view, setView] = useState<'menu' | 'drills'>('drills')
+  const [showTimeModal, setShowTimeModal] = useState(false)
 
-  // Dispatch events when entering/leaving the actual game
-  useEffect(() => {
-    if (view === 'aimtrainer' || view === 'typingdrill') {
-      window.dispatchEvent(new Event('game-start'))
-    } else {
-      window.dispatchEvent(new Event('game-stop'))
-    }
-  }, [view])
-
-  // 3D Aim Trainer View - Render using Portal to bypass sidebar
-  if (view === 'aimtrainer') {
-    return createPortal(
-      <div style={{ 
-        position: 'fixed', 
-        top: 0, 
-        left: 0, 
-        width: '100vw', 
-        height: '100vh', 
-        zIndex: 10000,
-        background: '#000'
-      }}>
-        <AimTrainer3D onExit={() => setView('drills')} />
-      </div>,
-      document.body
-    )
+  // Open game in new tab with selected time
+  const openGameInNewTab = (gameType: 'aim' | 'typing', duration?: number) => {
+    const baseUrl = window.location.origin
+    const timeParam = duration ? `&duration=${duration}` : ''
+    const gameUrl = `${baseUrl}/game.html?type=${gameType}${timeParam}`
+    window.open(gameUrl, '_blank', 'width=1920,height=1080')
   }
 
-  // 3D Typing Drill View - Render using Portal to bypass sidebar
-  if (view === 'typingdrill') {
-    return createPortal(
-      <div style={{ 
-        position: 'fixed', 
-        top: 0, 
-        left: 0, 
-        width: '100vw', 
-        height: '100vh', 
-        zIndex: 10000,
-        background: '#000'
-      }}>
-        <TypingDrill3D onExit={() => setView('drills')} />
-      </div>,
-      document.body
-    )
+  // Handle aim drill click - show time selection
+  const handleAimDrillClick = () => {
+    setShowTimeModal(true)
+  }
+
+  // Select time and start game
+  const selectTimeAndStart = (seconds: number) => {
+    setShowTimeModal(false)
+    openGameInNewTab('aim', seconds)
   }
 
   if (view === 'drills') {
@@ -71,7 +44,7 @@ export default function Play() {
             <p>
               Train your mouse accuracy by clicking on targets in 3D space. Click as many targets as you can within 60 seconds!
             </p>
-            <button className="drill-start-btn" onClick={() => setView('aimtrainer')}>START</button>
+            <button className="drill-start-btn" onClick={handleAimDrillClick}>START</button>
           </div>
 
           <div className="drill-card">
@@ -79,9 +52,114 @@ export default function Play() {
             <p>
               Eliminate zombies by typing words! Each correct letter fires your gun. Test your typing speed and accuracy in 3D combat.
             </p>
-            <button className="drill-start-btn" onClick={() => setView('typingdrill')}>START</button>
+            <button className="drill-start-btn" onClick={() => openGameInNewTab('typing')}>START</button>
           </div>
         </div>
+
+        {/* Time Selection Modal */}
+        {showTimeModal && createPortal(
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(0, 0, 0, 0.7)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999
+          }}>
+            <div style={{
+              background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+              padding: '40px 50px',
+              borderRadius: '20px',
+              border: '2px solid rgba(99, 102, 241, 0.5)',
+              boxShadow: '0 0 60px rgba(99, 102, 241, 0.3)',
+              textAlign: 'center',
+              minWidth: '400px'
+            }}>
+              <h2 style={{
+                color: '#fff',
+                fontSize: '28px',
+                marginBottom: '10px',
+                fontWeight: 'bold'
+              }}>SELECT DURATION</h2>
+              <p style={{
+                color: '#888',
+                fontSize: '14px',
+                marginBottom: '30px'
+              }}>How long do you want to train?</p>
+              
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '15px',
+                marginBottom: '25px'
+              }}>
+                {[
+                  { label: '15 SEC', value: 15 },
+                  { label: '30 SEC', value: 30 },
+                  { label: '45 SEC', value: 45 },
+                  { label: '1 MIN', value: 60 }
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => selectTimeAndStart(option.value)}
+                    style={{
+                      background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '20px 30px',
+                      borderRadius: '12px',
+                      fontSize: '18px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s',
+                      boxShadow: '0 4px 15px rgba(99, 102, 241, 0.4)'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-3px)'
+                      e.currentTarget.style.boxShadow = '0 8px 25px rgba(99, 102, 241, 0.5)'
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)'
+                      e.currentTarget.style.boxShadow = '0 4px 15px rgba(99, 102, 241, 0.4)'
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              
+              <button
+                onClick={() => setShowTimeModal(false)}
+                style={{
+                  background: 'transparent',
+                  color: '#888',
+                  border: '2px solid rgba(255, 255, 255, 0.2)',
+                  padding: '12px 30px',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.4)'
+                  e.currentTarget.style.color = '#fff'
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)'
+                  e.currentTarget.style.color = '#888'
+                }}
+              >
+                CANCEL
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
       </div>
     )
   }

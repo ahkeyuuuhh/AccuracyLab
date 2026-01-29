@@ -1,12 +1,51 @@
+import { useState } from 'react'
+import type { User } from 'firebase/auth'
+import { signInWithPopup } from 'firebase/auth'
+import { auth, googleProvider } from '../firebase/config'
+import { createUserProfile } from '../firebase/userService'
 import '../style/LandingPage.css'
 
 interface LandingPageProps {
   onGetStarted: () => void
   onLogin: () => void
-  onSignup: () => void
+  currentUser: User | null
+  onLogout: () => void
 }
 
-export default function LandingPage({ onGetStarted, onLogin, onSignup }: LandingPageProps) {
+export default function LandingPage({ onGetStarted, onLogin, currentUser, onLogout }: LandingPageProps) {
+  const [showLogoutModal, setShowLogoutModal] = useState(false)
+
+  const handleGoogleLogin = async () => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider)
+      await createUserProfile(result.user)
+      onLogin()
+    } catch (error) {
+      console.error('Google login error:', error)
+    }
+  }
+
+  const handleBeginMission = () => {
+    if (!currentUser) {
+      handleGoogleLogin()
+    } else {
+      window.open('/?page=play', '_blank')
+    }
+  }
+
+  const handleLogoutClick = () => {
+    setShowLogoutModal(true)
+  }
+
+  const confirmLogout = () => {
+    setShowLogoutModal(false)
+    onLogout()
+  }
+
+  const cancelLogout = () => {
+    setShowLogoutModal(false)
+  }
+
   return (
     <div className="landing-page">
       
@@ -27,8 +66,66 @@ export default function LandingPage({ onGetStarted, onLogin, onSignup }: Landing
             </nav>
 
             <div className="hero-auth-pill">
-              <button className="hero-btn-login" onClick={onLogin}>Login</button>
-              <button className="hero-btn-signup" onClick={onSignup}>Signup</button>
+              {currentUser ? (
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '12px',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  padding: '8px 16px',
+                  borderRadius: '50px',
+                  border: '1px solid rgba(255, 255, 255, 0.2)'
+                }}>
+                  <img 
+                    src={currentUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.displayName || currentUser.email || 'User')}&background=6366f1&color=fff&size=128`} 
+                    alt="Profile" 
+                    style={{ 
+                      width: '32px', 
+                      height: '32px', 
+                      borderRadius: '50%',
+                      border: '2px solid rgba(255, 255, 255, 0.3)'
+                    }}
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.displayName || currentUser.email || 'User')}&background=6366f1&color=fff&size=128`;
+                    }}
+                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    {currentUser.displayName && (
+                      <span style={{ color: '#fff', fontSize: '14px', fontWeight: '600' }}>
+                        {currentUser.displayName}
+                      </span>
+                    )}
+                    <span style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '12px', fontWeight: '400' }}>
+                      {currentUser.email}
+                    </span>
+                  </div>
+                  <button 
+                    onClick={handleLogoutClick}
+                    style={{
+                      background: 'rgba(239, 68, 68, 0.2)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      borderRadius: '6px',
+                      padding: '6px 12px',
+                      color: '#ef4444',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(239, 68, 68, 0.3)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'
+                    }}
+                  >
+                    Logout
+                  </button>
+                </div>
+              ) : (
+                <button className="hero-btn-login" onClick={handleGoogleLogin}>Login with Google</button>
+              )}
             </div>
           </header>
 
@@ -41,7 +138,7 @@ export default function LandingPage({ onGetStarted, onLogin, onSignup }: Landing
                   Master the perfect synergy between pixel-perfect aim and lightning-fast keystroke accuracy. Our advanced laboratory provides the clinical environment you need to isolate your weaknesses and build elite-level muscle memory.
                 </p>
               </div>
-              <button className="startNow-btn" onClick={onGetStarted}>
+              <button className="startNow-btn" onClick={handleBeginMission}>
                 BEGIN MISSION
               </button>
             </div>
@@ -293,6 +390,103 @@ export default function LandingPage({ onGetStarted, onLogin, onSignup }: Landing
           </div>
         </div>
       </footer>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+            border: '2px solid rgba(99, 102, 241, 0.3)',
+            borderRadius: '12px',
+            padding: '32px',
+            maxWidth: '400px',
+            width: '90%',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
+          }}>
+            <h2 style={{
+              color: '#fff',
+              fontSize: '24px',
+              fontWeight: '700',
+              marginBottom: '16px',
+              textAlign: 'center'
+            }}>
+              Confirm Logout
+            </h2>
+            <p style={{
+              color: 'rgba(255, 255, 255, 0.7)',
+              fontSize: '16px',
+              marginBottom: '32px',
+              textAlign: 'center',
+              lineHeight: '1.5'
+            }}>
+              Are you sure you want to logout?
+            </p>
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              justifyContent: 'center'
+            }}>
+              <button
+                onClick={cancelLogout}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '8px',
+                  padding: '12px 24px',
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmLogout}
+                style={{
+                  background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: '8px',
+                  padding: '12px 24px',
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)'
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)'
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
+              >
+                Yes, Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
